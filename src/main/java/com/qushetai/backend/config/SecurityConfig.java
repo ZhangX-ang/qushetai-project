@@ -78,6 +78,7 @@ public class SecurityConfig {
                                 "/debug/**",
                                 "/health",
                                 "/status",
+                                "/api/health",
 
                                 // 消息系统测试
                                 "/messages/test",

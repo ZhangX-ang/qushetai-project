@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,6 +25,17 @@ public class AuthController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    // 统一响应格式辅助方法
+    private Map<String, Object> buildResponse(int code, boolean success, String message, Object data) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("code", code);
+        response.put("success", success);
+        response.put("message", message);
+        response.put("data", data);
+        response.put("timestamp", Instant.now().toString());
+        return response;
+    }
+
     // 发送验证码
     @PostMapping("/send-code")
     public Map<String, Object> sendCode(@RequestBody Map<String, String> request) {
@@ -32,7 +44,7 @@ public class AuthController {
         return userService.sendVerificationCode(contact, type);
     }
 
-    // 验证码登录
+    // 验证码登录 - 统一响应格式
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> request) {
         try {
@@ -45,37 +57,33 @@ public class AuthController {
             if (user != null) {
                 String token = jwtUtil.generateToken(user.getEmail(), user.getId());
 
-                // 安全构建用户信息
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", user.getId());
                 userInfo.put("email", user.getEmail());
                 userInfo.put("nickname", user.getNickname() != null ? user.getNickname() : "");
                 userInfo.put("isAdmin", user.getIsAdmin() != null ? user.getIsAdmin() : 0);
 
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "登录成功");
-                response.put("data", Map.of(
-                        "token", token,
-                        "user", userInfo
-                ));
+                // 构建响应数据
+                Map<String, Object> data = new HashMap<>();
+                data.put("token", token);
+                data.put("userInfo", userInfo);
+
+                Map<String, Object> response = buildResponse(200, true, "登录成功", data);
                 return ResponseEntity.ok(response);
             } else {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "用户不存在");
+                Map<String, Object> response = buildResponse(400, false, "用户不存在", null);
                 return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "登录失败: " + e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "验证码登录失败";
+            Map<String, Object> response = buildResponse(500, false, errorMessage, null);
             return ResponseEntity.badRequest().body(response);
         }
     }
 
-    // 密码登录
+    // 密码登录 - 统一响应格式
     @PostMapping("/login-pwd")
     public ResponseEntity<?> loginWithPassword(@RequestBody Map<String, String> request) {
         try {
@@ -88,43 +96,37 @@ public class AuthController {
                 if (passwordEncoder.matches(password, user.getPasswordHash())) {
                     String token = jwtUtil.generateToken(user.getEmail(), user.getId());
 
-                    // 安全构建用户信息
+                    // 构建用户信息
                     Map<String, Object> userInfo = new HashMap<>();
                     userInfo.put("id", user.getId());
                     userInfo.put("email", user.getEmail());
                     userInfo.put("nickname", user.getNickname() != null ? user.getNickname() : "");
                     userInfo.put("isAdmin", user.getIsAdmin() != null ? user.getIsAdmin() : 0);
 
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("success", true);
-                    response.put("message", "登录成功");
-                    response.put("data", Map.of(
-                            "token", token,
-                            "user", userInfo
-                    ));
+                    // 构建响应数据
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("token", token);
+                    data.put("userInfo", userInfo);
+
+                    Map<String, Object> response = buildResponse(200, true, "登录成功", data);
                     return ResponseEntity.ok(response);
                 } else {
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("success", false);
-                    response.put("message", "密码错误");
+                    Map<String, Object> response = buildResponse(400, false, "密码错误", null);
                     return ResponseEntity.badRequest().body(response);
                 }
             } else {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "用户不存在或未设置密码");
+                Map<String, Object> response = buildResponse(400, false, "用户不存在或未设置密码", null);
                 return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "登录失败: " + e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "密码登录失败";
+            Map<String, Object> response = buildResponse(500, false, errorMessage, null);
             return ResponseEntity.badRequest().body(response);
         }
     }
 
-    // 注册接口（如果需要的话）
+    // 注册接口 - 统一响应格式
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
         try {
@@ -135,9 +137,7 @@ public class AuthController {
             // 检查用户是否已存在
             User existingUser = userService.findByEmail(email);
             if (existingUser != null) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "邮箱已被注册");
+                Map<String, Object> response = buildResponse(400, false, "邮箱已被注册", null);
                 return ResponseEntity.badRequest().body(response);
             }
 
@@ -153,32 +153,28 @@ public class AuthController {
             if (saved) {
                 String token = jwtUtil.generateToken(newUser.getEmail(), newUser.getId());
 
-                // 安全构建用户信息
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", newUser.getId());
                 userInfo.put("email", newUser.getEmail());
                 userInfo.put("nickname", newUser.getNickname() != null ? newUser.getNickname() : "");
                 userInfo.put("isAdmin", newUser.getIsAdmin() != null ? newUser.getIsAdmin() : 0);
 
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "注册成功");
-                response.put("data", Map.of(
-                        "token", token,
-                        "user", userInfo
-                ));
+                // 构建响应数据
+                Map<String, Object> data = new HashMap<>();
+                data.put("token", token);
+                data.put("userInfo", userInfo);
+
+                Map<String, Object> response = buildResponse(200, true, "注册成功", data);
                 return ResponseEntity.ok(response);
             } else {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "注册失败");
+                Map<String, Object> response = buildResponse(500, false, "注册失败", null);
                 return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "注册失败: " + e.getMessage());
+            String errorMessage = e.getMessage() != null ? e.getMessage() : "注册失败";
+            Map<String, Object> response = buildResponse(500, false, errorMessage, null);
             return ResponseEntity.badRequest().body(response);
         }
     }
@@ -202,18 +198,19 @@ public class AuthController {
             health.put("dependencies", dependencies);
 
             System.out.println("【DEBUG】健康检查: " + health);
-            return ResponseEntity.ok(health);
+
+            Map<String, Object> response = buildResponse(200, true, "服务正常", health);
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             System.err.println("【ERROR】健康检查异常: " + e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage()
-            ));
+            Map<String, Object> response = buildResponse(500, false, "健康检查异常: " + e.getMessage(), null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
     /**
-     * 硬编码测试token（临时解决方案）
+     * 硬编码测试token（临时解决方案）- 统一响应格式
      */
     @GetMapping("/hardcoded-token")
     public ResponseEntity<?> hardcodedToken() {
@@ -228,59 +225,51 @@ public class AuthController {
             // 直接使用JwtUtil生成token（如果jwtUtil为null会报错）
             if (jwtUtil == null) {
                 System.err.println("【ERROR】jwtUtil为null，使用模拟token");
-                // 返回模拟token
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "模拟token生成成功（jwtUtil未注入）");
 
-                // 安全构建用户信息
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", userId);
                 userInfo.put("email", userEmail);
                 userInfo.put("nickname", userNickname);
                 userInfo.put("isAdmin", 1);
 
+                // 构建响应数据
                 Map<String, Object> data = new HashMap<>();
                 data.put("token", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbkBxdXNoZXRhaS5jb20iLCJ1c2VySWQiOjEsImlhdCI6MTcxMDAwMDAwMCwiZXhwIjoxNzEwMDg2NDAwfQ.simulated_token_for_testing");
-                data.put("user", userInfo);
+                data.put("userInfo", userInfo);
                 data.put("note", "这是一个模拟token，仅用于测试接口连通性");
 
-                response.put("data", data);
+                Map<String, Object> response = buildResponse(200, true, "模拟token生成成功（jwtUtil未注入）", data);
                 return ResponseEntity.ok(response);
             } else {
                 // 正常生成token
                 String token = jwtUtil.generateToken(userEmail, userId);
 
-                // 安全构建用户信息
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", userId);
                 userInfo.put("email", userEmail);
                 userInfo.put("nickname", userNickname);
                 userInfo.put("isAdmin", 1);
 
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "硬编码token生成成功");
-
+                // 构建响应数据
                 Map<String, Object> data = new HashMap<>();
                 data.put("token", token);
-                data.put("user", userInfo);
-                response.put("data", data);
+                data.put("userInfo", userInfo);
 
+                Map<String, Object> response = buildResponse(200, true, "硬编码token生成成功", data);
                 return ResponseEntity.ok(response);
             }
 
         } catch (Exception e) {
             System.err.println("【ERROR】硬编码token异常: " + e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "硬编码token失败: " + e.getMessage()
-            ));
+            Map<String, Object> response = buildResponse(500, false, "硬编码token失败: " + e.getMessage(), null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
     /**
-     * 获取测试token（开发用）- 修复版本
+     * 获取测试token（开发用）- 修复版本 - 统一响应格式
      */
     @GetMapping("/get-test-token")
     public ResponseEntity<?> getTestToken() {
@@ -294,18 +283,14 @@ public class AuthController {
 
             if (userService == null) {
                 System.err.println("【ERROR】userService 注入失败！");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "userService 注入失败"
-                ));
+                Map<String, Object> response = buildResponse(500, false, "userService 注入失败", null);
+                return ResponseEntity.badRequest().body(response);
             }
 
             if (jwtUtil == null) {
                 System.err.println("【ERROR】jwtUtil 注入失败！");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "jwtUtil 注入失败"
-                ));
+                Map<String, Object> response = buildResponse(500, false, "jwtUtil 注入失败", null);
+                return ResponseEntity.badRequest().body(response);
             }
 
             // 查找管理员用户
@@ -338,45 +323,37 @@ public class AuthController {
                 String token = jwtUtil.generateToken(adminUser.getEmail(), adminUser.getId());
                 System.out.println("【DEBUG】Token生成成功: " + token);
 
-                // 安全构建用户信息
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", adminUser.getId() != null ? adminUser.getId() : 0);
                 userInfo.put("email", adminUser.getEmail() != null ? adminUser.getEmail() : "");
                 userInfo.put("nickname", adminUser.getNickname() != null ? adminUser.getNickname() : "");
                 userInfo.put("isAdmin", actualIsAdmin);
 
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "测试token生成成功");
-
+                // 构建响应数据
                 Map<String, Object> data = new HashMap<>();
                 data.put("token", token);
-                data.put("user", userInfo);
+                data.put("userInfo", userInfo);
                 data.put("usage", "在请求头中添加: Authorization: Bearer " + token);
 
-                response.put("data", data);
+                Map<String, Object> response = buildResponse(200, true, "测试token生成成功", data);
                 return ResponseEntity.ok(response);
             } else {
                 System.out.println("【DEBUG】未找到任何管理员用户");
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "未找到管理员用户"
-                ));
+                Map<String, Object> response = buildResponse(404, false, "未找到管理员用户", null);
+                return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
             System.err.println("【ERROR】获取测试token异常: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "获取测试token失败: " + e.getMessage(),
-                    "errorType", e.getClass().getSimpleName()
-            ));
+            Map<String, Object> response = buildResponse(500, false, "获取测试token失败: " + e.getMessage(), null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
     /**
-     * 调试用户权限信息
+     * 调试用户权限信息 - 统一响应格式
      */
     @GetMapping("/debug-user-permission")
     public ResponseEntity<?> debugUserPermission() {
@@ -396,30 +373,23 @@ public class AuthController {
                 debugInfo.put("userClass", adminUser.getClass().getName());
                 debugInfo.put("userToString", adminUser.toString());
 
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "用户权限调试信息",
-                        "debugInfo", debugInfo
-                ));
+                Map<String, Object> response = buildResponse(200, true, "用户权限调试信息", debugInfo);
+                return ResponseEntity.ok(response);
             } else {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "message", "未找到管理员用户"
-                ));
+                Map<String, Object> response = buildResponse(404, false, "未找到管理员用户", null);
+                return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
             System.err.println("【ERROR】调试用户权限异常: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "调试用户权限失败: " + e.getMessage()
-            ));
+            Map<String, Object> response = buildResponse(500, false, "调试用户权限失败: " + e.getMessage(), null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 
     /**
-     * 创建测试管理员用户（开发用）
+     * 创建测试管理员用户（开发用）- 统一响应格式
      */
     @PostMapping("/create-test-user")
     public ResponseEntity<?> createTestUser() {
@@ -429,17 +399,14 @@ public class AuthController {
             // 检查是否已存在
             User existingUser = userService.findByEmail("test@qushetai.com");
             if (existingUser != null) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "测试用户已存在");
-
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", existingUser.getId());
                 userInfo.put("email", existingUser.getEmail());
                 userInfo.put("nickname", existingUser.getNickname() != null ? existingUser.getNickname() : "");
                 userInfo.put("isAdmin", existingUser.getIsAdmin() != null ? existingUser.getIsAdmin() : 0);
-                response.put("user", userInfo);
 
+                Map<String, Object> response = buildResponse(200, true, "测试用户已存在", userInfo);
                 return ResponseEntity.ok(response);
             }
 
@@ -455,37 +422,30 @@ public class AuthController {
             System.out.println("【DEBUG】用户保存结果: " + saved);
 
             if (saved) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", true);
-                response.put("message", "测试用户创建成功");
-
+                // 构建用户信息
                 Map<String, Object> userInfo = new HashMap<>();
                 userInfo.put("id", newUser.getId());
                 userInfo.put("email", newUser.getEmail());
                 userInfo.put("nickname", newUser.getNickname() != null ? newUser.getNickname() : "");
                 userInfo.put("isAdmin", newUser.getIsAdmin() != null ? newUser.getIsAdmin() : 0);
-                response.put("user", userInfo);
 
+                Map<String, Object> response = buildResponse(200, true, "测试用户创建成功", userInfo);
                 return ResponseEntity.ok(response);
             } else {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "测试用户创建失败");
+                Map<String, Object> response = buildResponse(500, false, "测试用户创建失败", null);
                 return ResponseEntity.badRequest().body(response);
             }
 
         } catch (Exception e) {
             System.err.println("【ERROR】创建测试用户异常: " + e.getMessage());
             e.printStackTrace();
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "创建测试用户失败: " + e.getMessage());
+            Map<String, Object> response = buildResponse(500, false, "创建测试用户失败: " + e.getMessage(), null);
             return ResponseEntity.badRequest().body(response);
         }
     }
 
     /**
-     * 为C同学生成测试Token（开发用）
+     * 为C同学生成测试Token（开发用）- 统一响应格式
      */
     @GetMapping("/test-token-for-c")
     public ResponseEntity<?> getTestTokenForC() {
@@ -510,10 +470,8 @@ public class AuthController {
                 System.out.println("【DEBUG】C测试用户保存结果: " + saved);
 
                 if (!saved) {
-                    return ResponseEntity.badRequest().body(Map.of(
-                            "success", false,
-                            "message", "创建测试用户失败"
-                    ));
+                    Map<String, Object> response = buildResponse(500, false, "创建测试用户失败", null);
+                    return ResponseEntity.badRequest().body(response);
                 }
 
                 // 重新获取用户以确保ID被设置
@@ -535,25 +493,20 @@ public class AuthController {
             userInfo.put("interestTags", testUser.getInterestTags());
             userInfo.put("isAdmin", testUser.getIsAdmin());
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "C同学测试Token生成成功");
-
+            // 构建响应数据
             Map<String, Object> data = new HashMap<>();
             data.put("token", token);
-            data.put("user", userInfo);
+            data.put("userInfo", userInfo);
             data.put("usage", "在请求头中添加: Authorization: Bearer " + token);
 
-            response.put("data", data);
+            Map<String, Object> response = buildResponse(200, true, "C同学测试Token生成成功", data);
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             System.err.println("【ERROR】生成C同学测试Token失败: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "生成测试Token失败: " + e.getMessage()
-            ));
+            Map<String, Object> response = buildResponse(500, false, "生成测试Token失败: " + e.getMessage(), null);
+            return ResponseEntity.badRequest().body(response);
         }
     }
 }
