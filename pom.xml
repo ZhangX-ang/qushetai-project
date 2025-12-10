@@ -95,6 +95,20 @@
             <version>2.15.2</version>
         </dependency>
 
+
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>5.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Spring Boot DevTools (可选，开发时热重载) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
