@@ -9,15 +9,16 @@ import java.util.Map;
 @Mapper
 public interface UserMapper {
 
-    // 修改插入语句，student_id不再必需
-    @Insert("INSERT INTO user (student_id, phone, email, password_hash, nickname, interest_tags, free_time_slots, is_admin) " +
-            "VALUES (#{studentId}, #{phone}, #{email}, #{passwordHash}, #{nickname}, #{interestTags}, #{freeTimeSlots}, #{isAdmin})")
+    // 修改插入语句，添加username字段
+    @Insert("INSERT INTO user (username, student_id, phone, email, password_hash, nickname, interest_tags, free_time_slots, is_admin) " +
+            "VALUES (#{username}, #{studentId}, #{phone}, #{email}, #{passwordHash}, #{nickname}, #{interestTags}, #{freeTimeSlots}, #{isAdmin})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(User user);
 
-    // 使用 @Results 注解显式映射字段
+    // 使用 @Results 注解显式映射字段，添加username
     @Select("SELECT * FROM user WHERE phone = #{phone}")
     @Results({
+            @Result(column = "username", property = "username"),  // 新增
             @Result(column = "student_id", property = "studentId"),
             @Result(column = "password_hash", property = "passwordHash"),
             @Result(column = "interest_tags", property = "interestTags"),
@@ -29,8 +30,24 @@ public interface UserMapper {
     })
     User findByPhone(String phone);
 
+    // === 新增方法：根据手机号查找用户列表 ===
+    @Select("SELECT * FROM user WHERE phone = #{phone}")
+    @Results({
+            @Result(column = "username", property = "username"),
+            @Result(column = "student_id", property = "studentId"),
+            @Result(column = "password_hash", property = "passwordHash"),
+            @Result(column = "interest_tags", property = "interestTags"),
+            @Result(column = "free_time_slots", property = "freeTimeSlots"),
+            @Result(column = "is_active", property = "isActive"),
+            @Result(column = "created_at", property = "createdAt"),
+            @Result(column = "updated_at", property = "updatedAt"),
+            @Result(column = "is_admin", property = "isAdmin")
+    })
+    List<User> findListByPhone(String phone);
+
     @Select("SELECT * FROM user WHERE email = #{email}")
     @Results({
+            @Result(column = "username", property = "username"),  // 新增
             @Result(column = "student_id", property = "studentId"),
             @Result(column = "password_hash", property = "passwordHash"),
             @Result(column = "interest_tags", property = "interestTags"),
@@ -44,6 +61,7 @@ public interface UserMapper {
 
     @Select("SELECT * FROM user WHERE student_id = #{studentId}")
     @Results({
+            @Result(column = "username", property = "username"),  // 新增
             @Result(column = "student_id", property = "studentId"),
             @Result(column = "password_hash", property = "passwordHash"),
             @Result(column = "interest_tags", property = "interestTags"),
@@ -57,6 +75,7 @@ public interface UserMapper {
 
     @Select("SELECT * FROM user WHERE id = #{id}")
     @Results({
+            @Result(column = "username", property = "username"),  // 新增
             @Result(column = "student_id", property = "studentId"),
             @Result(column = "password_hash", property = "passwordHash"),
             @Result(column = "interest_tags", property = "interestTags"),
@@ -68,6 +87,7 @@ public interface UserMapper {
     })
     User findById(Long id);
 
+    // 其他方法保持不变...
     @Update("UPDATE user SET nickname=#{nickname}, updated_at=CURRENT_TIMESTAMP WHERE id=#{id}")
     int update(User user);
 
@@ -77,7 +97,8 @@ public interface UserMapper {
     @Update("UPDATE user SET interest_tags=#{interestTags}, updated_at=CURRENT_TIMESTAMP WHERE id=#{id}")
     int updateInterests(@Param("id") Long id, @Param("interestTags") String interestTags);
 
-    @Update("UPDATE user SET free_time_slots=#{freeTimeSlots}, updated_at=CURRENT_TIMESTAMP WHERE id=#{id}")
+    // 修改空闲时间更新方法，去掉 updated_at=CURRENT_TIMESTAMP
+    @Update("UPDATE user SET free_time_slots=#{freeTimeSlots} WHERE id=#{id}")
     int updateFreeTime(@Param("id") Long id, @Param("freeTimeSlots") String freeTimeSlots);
 
     // === 新增方法：数据监控专用 ===
@@ -110,6 +131,7 @@ public interface UserMapper {
     // 获取所有用户（分页，管理员用）
     @Select("SELECT * FROM user ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}")
     @Results({
+            @Result(column = "username", property = "username"),  // 新增
             @Result(column = "student_id", property = "studentId"),
             @Result(column = "password_hash", property = "passwordHash"),
             @Result(column = "interest_tags", property = "interestTags"),

@@ -18,6 +18,52 @@ public class BehaviorLogService {
     @Autowired
     private UserBehaviorLogMapper behaviorLogMapper;
 
+    /**
+     * 时间戳解析方法 - 支持多种格式
+     */
+    private Long parseTimestamp(Object timestampObj) {
+        if (timestampObj == null) {
+            return System.currentTimeMillis();
+        }
+
+        try {
+            if (timestampObj instanceof Long) {
+                return (Long) timestampObj;
+            } else if (timestampObj instanceof Integer) {
+                return ((Integer) timestampObj).longValue();
+            } else if (timestampObj instanceof String) {
+                String timestampStr = (String) timestampObj;
+
+                // 处理 ISO 8601 格式： "2025-11-28T12:35:04.047Z"
+                if (timestampStr.contains("T")) {
+                    try {
+                        return java.time.Instant.parse(timestampStr).toEpochMilli();
+                    } catch (Exception e) {
+                        System.out.println("ISO 8601 格式解析失败，尝试其他格式: " + timestampStr);
+                    }
+                }
+
+                // 处理数字字符串格式
+                try {
+                    return Long.parseLong(timestampStr);
+                } catch (NumberFormatException e) {
+                    System.out.println("数字格式时间戳解析失败: " + timestampStr);
+                }
+
+                // 其他格式尝试使用当前时间
+                return System.currentTimeMillis();
+
+            } else {
+                // 其他未知类型
+                System.out.println("未知时间戳类型: " + timestampObj.getClass().getSimpleName());
+                return System.currentTimeMillis();
+            }
+        } catch (Exception e) {
+            System.out.println("时间戳解析异常，使用当前时间: " + e.getMessage());
+            return System.currentTimeMillis();
+        }
+    }
+
     // 记录行为日志
     public Map<String, Object> logBehavior(Map<String, Object> behaviorData) {
         Map<String, Object> result = new HashMap<>();
@@ -105,17 +151,8 @@ public class BehaviorLogService {
                 log.setUserState(behaviorData.get("user_state").toString());
             }
 
-            // 时间戳
-            if (behaviorData.get("timestamp") != null) {
-                try {
-                    log.setTimestamp(Long.parseLong(behaviorData.get("timestamp").toString()));
-                } catch (NumberFormatException e) {
-                    System.out.println("timestamp格式错误: " + behaviorData.get("timestamp"));
-                    log.setTimestamp(System.currentTimeMillis());
-                }
-            } else {
-                log.setTimestamp(System.currentTimeMillis());
-            }
+            // 时间戳 - 使用新的解析方法
+            log.setTimestamp(parseTimestamp(behaviorData.get("timestamp")));
 
             int rows = behaviorLogMapper.insert(log);
 

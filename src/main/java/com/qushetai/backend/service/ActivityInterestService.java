@@ -6,12 +6,14 @@ import com.qushetai.backend.entity.User;
 import com.qushetai.backend.mapper.UserActivityInterestMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
+@Transactional
 public class ActivityInterestService {
 
     @Autowired
@@ -26,24 +28,33 @@ public class ActivityInterestService {
     @Autowired
     private ActivityService activityService;
 
-    // 添加感兴趣
+    // 添加感兴趣 - 修复：使用正确的构造函数（自动设置interestType=1）
     public Map<String, Object> addInterest(Long userId, Long activityId) {
         Map<String, Object> result = new HashMap<>();
 
         try {
+            System.out.println("【DEBUG】ActivityInterestService.addInterest - 开始处理，userId=" + userId + ", activityId=" + activityId);
+
             // 检查是否已存在
             UserActivityInterest existing = interestMapper.findByUserAndActivity(userId, activityId);
+            System.out.println("【DEBUG】检查是否已存在：existing=" + existing);
+
             if (existing != null) {
+                System.out.println("【DEBUG】已存在感兴趣记录，返回失败");
                 result.put("success", false);
                 result.put("message", "已经对该活动感兴趣了");
                 return result;
             }
 
-            // 创建新的感兴趣记录
+            // 🔥 修改：使用正确的构造函数（自动设置interestType=1）
             UserActivityInterest interest = new UserActivityInterest(userId, activityId);
+            System.out.println("【DEBUG】创建UserActivityInterest对象：" + interest);
+
             int rows = interestMapper.insert(interest);
+            System.out.println("【DEBUG】插入操作结果：rows=" + rows);
 
             if (rows > 0) {
+                System.out.println("【DEBUG】插入成功，interestId=" + interest.getId());
                 // 发送通知给活动发起者
                 sendInterestNotification(activityId, userId);
 
@@ -51,14 +62,18 @@ public class ActivityInterestService {
                 result.put("message", "添加感兴趣成功");
                 result.put("interestId", interest.getId());
             } else {
+                System.out.println("【ERROR】插入失败，rows=0");
                 result.put("success", false);
                 result.put("message", "添加感兴趣失败");
             }
         } catch (Exception e) {
+            System.out.println("【ERROR】ActivityInterestService.addInterest异常：" + e.getMessage());
+            e.printStackTrace();
             result.put("success", false);
             result.put("message", "服务器错误: " + e.getMessage());
         }
 
+        System.out.println("【DEBUG】ActivityInterestService.addInterest - 返回结果：" + result);
         return result;
     }
 
@@ -85,6 +100,7 @@ public class ActivityInterestService {
     }
 
     // 获取活动的感兴趣用户列表
+    @Transactional(readOnly = true)
     public Map<String, Object> getActivityInterests(Long activityId) {
         Map<String, Object> result = new HashMap<>();
 
@@ -102,6 +118,7 @@ public class ActivityInterestService {
     }
 
     // 获取用户感兴趣的活动列表
+    @Transactional(readOnly = true)
     public Map<String, Object> getUserInterests(Long userId) {
         Map<String, Object> result = new HashMap<>();
 
@@ -118,6 +135,7 @@ public class ActivityInterestService {
     }
 
     // 检查用户是否对活动感兴趣
+    @Transactional(readOnly = true)
     public Map<String, Object> checkInterest(Long userId, Long activityId) {
         Map<String, Object> result = new HashMap<>();
 

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public class User {
     private Long id;
+    private String username;        // 新增字段
     private String studentId;        // 改为可为空
     private String phone;
     private String email;
@@ -19,6 +20,8 @@ public class User {
     // Getter和Setter方法
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public String getUsername() { return username; }  // 新增getter
+    public void setUsername(String username) { this.username = username; }  // 新增setter
     public String getStudentId() { return studentId; }
     public void setStudentId(String studentId) { this.studentId = studentId; }
     public String getPhone() { return phone; }
@@ -46,6 +49,7 @@ public class User {
     public String toString() {
         return "User{" +
                 "id=" + id +
+                ", username='" + username + '\'' +  // 新增
                 ", studentId='" + studentId + '\'' +
                 ", phone='" + phone + '\'' +
                 ", email='" + email + '\'' +

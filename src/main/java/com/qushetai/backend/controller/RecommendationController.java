@@ -2,8 +2,9 @@ package com.qushetai.backend.controller;
 
 import com.qushetai.backend.service.RecommendationService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
@@ -20,8 +21,14 @@ public class RecommendationController {
     @Autowired
     private RecommendationService recommendationService;
 
+    @Autowired
+    private RestTemplate restTemplate; // 使用已配置的RestTemplate
+
+    // Flask推荐服务的地址
+    private final String FLASK_SERVICE_URL = "http://192.168.100.104:5000";
+
     /**
-     * 从请求中获取用户ID的辅助方法
+     * 从请求中获取用户ID的辅助方法F
      */
     private Long getUserIdFromRequest(HttpServletRequest request) {
         Object userIdObj = request.getAttribute("userId");
@@ -32,8 +39,7 @@ public class RecommendationController {
     }
 
     /**
-     * 获取当前登录用户的个性化推荐活动列表（主要接口）
-     * 需要认证，基于用户行为和历史数据进行智能推荐
+     * 获取当前登录用户的个性化推荐活动列表 - 修改为调用Flask服务
      */
     @GetMapping("/for-current-user")
     public ResponseEntity<?> getPersonalizedRecommendations(
@@ -43,12 +49,28 @@ public class RecommendationController {
 
         try {
             Long userId = getUserIdFromRequest(request);
-            System.out.println("为用户 " + userId + " 生成个性化推荐，数量: " + limit);
+            System.out.println("为用户 " + userId + " 调用Flask个性化推荐，数量: " + limit);
 
-            Map<String, Object> result = recommendationService.getRecommendations(userId, limit);
+            // 获取Flask服务的token
+            String flaskToken = getFlaskToken(userId);
+
+            // 调用Flask推荐服务
+            String url = FLASK_SERVICE_URL + "/recommendations/for-current-user?limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + flaskToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, Map.class);
+
+            // 将Flask服务的响应直接返回给前端
+            Map<String, Object> result = response.getBody();
 
             // 如果请求包含解释，添加推荐理由
-            if (includeExplanation && (Boolean) result.get("success")) {
+            if (includeExplanation && result != null && (Boolean) result.get("success")) {
                 result = addRecommendationExplanation(result, userId);
             }
 
@@ -59,14 +81,13 @@ public class RecommendationController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "获取推荐失败: " + e.getMessage());
-            errorResponse.put("errorType", "AUTHENTICATION_ERROR");
+            errorResponse.put("errorType", "FLASK_SERVICE_ERROR");
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
     /**
-     * 获取冷启动推荐（为新用户或未登录用户）
-     * 无需认证，基于热门活动和全局偏好
+     * 获取冷启动推荐 - 修改为调用Flask服务
      */
     @GetMapping("/cold-start")
     public ResponseEntity<?> getColdStartRecommendations(
@@ -74,18 +95,25 @@ public class RecommendationController {
             @RequestParam(required = false) String preferredCategory) {
 
         try {
-            System.out.println("生成冷启动推荐，偏好类别: " + preferredCategory);
+            System.out.println("调用Flask冷启动推荐，数量: " + limit);
 
-            Map<String, Object> result = recommendationService.getColdStartRecommendations(limit);
+            // 调用Flask冷启动推荐服务（无需认证）
+            String url = FLASK_SERVICE_URL + "/recommendations/cold-start?limit=" + limit;
+
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+
+            Map<String, Object> result = response.getBody();
 
             // 如果指定了偏好类别，进行过滤
-            if (preferredCategory != null && !preferredCategory.trim().isEmpty()) {
+            if (preferredCategory != null && !preferredCategory.trim().isEmpty() && result != null) {
                 result = filterByPreferredCategory(result, preferredCategory);
             }
 
             // 添加冷启动说明
-            result.put("recommendationType", "冷启动推荐");
-            result.put("explanation", "基于热门活动和全局趋势为您推荐");
+            if (result != null) {
+                result.put("recommendationType", "冷启动推荐");
+                result.put("explanation", "基于热门活动和全局趋势为您推荐");
+            }
 
             return ResponseEntity.ok(result);
 
@@ -99,8 +127,7 @@ public class RecommendationController {
     }
 
     /**
-     * 基于兴趣标签的推荐（快速推荐）
-     * 需要认证，但仅基于用户标签，不依赖行为数据
+     * 基于兴趣标签的推荐 - 修改为调用Flask服务
      */
     @GetMapping("/by-interests")
     public ResponseEntity<?> getRecommendationsByInterests(
@@ -109,12 +136,28 @@ public class RecommendationController {
 
         try {
             Long userId = getUserIdFromRequest(request);
-            System.out.println("基于兴趣标签为用户 " + userId + " 生成推荐");
+            System.out.println("为用户 " + userId + " 调用Flask基于兴趣的推荐");
 
-            Map<String, Object> result = recommendationService.getRecommendationsByInterests(userId, limit);
+            // 获取Flask服务的token
+            String flaskToken = getFlaskToken(userId);
 
-            result.put("recommendationType", "兴趣标签匹配");
-            result.put("explanation", "根据您选择的兴趣标签匹配相关活动");
+            // 调用Flask基于兴趣的推荐服务
+            String url = FLASK_SERVICE_URL + "/recommendations/by-interests?limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + flaskToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, Map.class);
+
+            Map<String, Object> result = response.getBody();
+            if (result != null) {
+                result.put("recommendationType", "兴趣标签匹配");
+                result.put("explanation", "根据您选择的兴趣标签匹配相关活动");
+            }
 
             return ResponseEntity.ok(result);
 
@@ -128,8 +171,7 @@ public class RecommendationController {
     }
 
     /**
-     * 探索性推荐（发现新兴趣）
-     * 需要认证，推荐与用户当前兴趣不同但可能感兴趣的活动
+     * 探索性推荐 - 修改为调用Flask服务
      */
     @GetMapping("/explore")
     public ResponseEntity<?> getExplorationRecommendations(
@@ -138,12 +180,28 @@ public class RecommendationController {
 
         try {
             Long userId = getUserIdFromRequest(request);
-            System.out.println("为用户 " + userId + " 生成探索性推荐");
+            System.out.println("为用户 " + userId + " 调用Flask探索性推荐");
 
-            Map<String, Object> result = recommendationService.getExplorationRecommendations(userId, limit);
+            // 获取Flask服务的token
+            String flaskToken = getFlaskToken(userId);
 
-            result.put("recommendationType", "探索推荐");
-            result.put("explanation", "为您推荐可能感兴趣的新领域活动");
+            // 调用Flask探索性推荐服务
+            String url = FLASK_SERVICE_URL + "/recommendations/explore?limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + flaskToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, Map.class);
+
+            Map<String, Object> result = response.getBody();
+            if (result != null) {
+                result.put("recommendationType", "探索推荐");
+                result.put("explanation", "为您推荐可能感兴趣的新领域活动");
+            }
 
             return ResponseEntity.ok(result);
 
@@ -157,18 +215,57 @@ public class RecommendationController {
     }
 
     /**
+     * 获取Flask服务的Token
+     */
+    private String getFlaskToken(Long userId) {
+        try {
+            // 调用Flask服务的token生成接口
+            String tokenUrl = FLASK_SERVICE_URL + "/generate-test-token/" + userId;
+
+            ResponseEntity<String> tokenResponse = restTemplate.getForEntity(tokenUrl, String.class);
+
+            // 假设返回的是纯token字符串
+            String token = tokenResponse.getBody();
+
+            // 如果返回的是JSON格式，需要解析
+            if (token != null && token.startsWith("{")) {
+                // 简单处理：如果返回JSON，提取token字段
+                // 这里需要根据实际返回格式调整
+                @SuppressWarnings("unchecked")
+                Map<String, Object> tokenMap = restTemplate.getForObject(tokenUrl, Map.class);
+                if (tokenMap != null && tokenMap.containsKey("token")) {
+                    token = (String) tokenMap.get("token");
+                }
+            }
+
+            if (token == null || token.trim().isEmpty()) {
+                throw new RuntimeException("无法获取Flask服务Token");
+            }
+
+            System.out.println("成功获取Flask Token: " + (token.length() > 20 ? token.substring(0, 20) + "..." : token));
+            return token.trim();
+
+        } catch (Exception e) {
+            System.err.println("获取Flask Token失败: " + e.getMessage());
+            throw new RuntimeException("获取推荐服务Token失败: " + e.getMessage());
+        }
+    }
+
+    /**
      * 获取推荐系统状态和统计信息
-     * 需要认证
      */
     @GetMapping("/status")
     public ResponseEntity<?> getRecommendationStatus(HttpServletRequest request) {
         try {
             Long userId = getUserIdFromRequest(request);
 
+            // 可以返回混合状态信息
             Map<String, Object> status = new HashMap<>();
             status.put("success", true);
             status.put("userId", userId);
             status.put("systemStatus", "ACTIVE");
+            status.put("recommendationService", "FLASK");
+            status.put("serviceUrl", FLASK_SERVICE_URL);
             status.put("personalizationLevel", calculatePersonalizationLevel(userId));
             status.put("dataPoints", getDataPointCount(userId));
             status.put("lastUpdated", System.currentTimeMillis());
@@ -186,6 +283,38 @@ public class RecommendationController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "获取推荐状态失败: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
+    /**
+     * 健康检查 - 修改为检查Flask服务健康状态
+     */
+    @GetMapping("/health")
+    public ResponseEntity<?> getSystemHealth() {
+        try {
+            // 检查Flask服务是否可用
+            String healthUrl = FLASK_SERVICE_URL + "/health"; // 假设Flask服务有健康检查接口
+            try {
+                ResponseEntity<Map> healthResponse = restTemplate.getForEntity(healthUrl, Map.class);
+                Map<String, Object> health = healthResponse.getBody();
+                health.put("recommendationService", "FLASK");
+                health.put("serviceUrl", FLASK_SERVICE_URL);
+                return ResponseEntity.ok(health);
+            } catch (Exception e) {
+                // 如果Flask健康检查失败，返回基本状态
+                Map<String, Object> health = new HashMap<>();
+                health.put("success", true);
+                health.put("service", "Spring Boot Backend");
+                health.put("flaskServiceStatus", "UNREACHABLE");
+                health.put("flaskServiceUrl", FLASK_SERVICE_URL);
+                health.put("message", "Flask服务暂时不可用");
+                return ResponseEntity.ok(health);
+            }
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "获取系统健康状态失败: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -246,10 +375,24 @@ public class RecommendationController {
                 ));
             }
 
-            Map<String, Object> result = recommendationService.getRecommendations(targetUserId, limit);
-            result.put("adminView", true);
-            result.put("targetUserId", targetUserId);
-            result.put("requestedBy", currentUserId);
+            // 调用Flask服务获取推荐
+            String flaskToken = getFlaskToken(targetUserId);
+            String url = FLASK_SERVICE_URL + "/recommendations/for-current-user?limit=" + limit;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + flaskToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
+
+            Map<String, Object> result = response.getBody();
+            if (result != null) {
+                result.put("adminView", true);
+                result.put("targetUserId", targetUserId);
+                result.put("requestedBy", currentUserId);
+            }
 
             return ResponseEntity.ok(result);
 
@@ -257,22 +400,6 @@ public class RecommendationController {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "管理员推荐查询失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-
-    /**
-     * 获取推荐系统健康状态
-     */
-    @GetMapping("/health")
-    public ResponseEntity<?> getSystemHealth() {
-        try {
-            Map<String, Object> health = recommendationService.getSystemHealth();
-            return ResponseEntity.ok(health);
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", "获取系统健康状态失败: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -451,6 +578,8 @@ public class RecommendationController {
             debugInfo.put("timestamp", System.currentTimeMillis());
             debugInfo.put("algorithmVersion", "v1.0.0");
             debugInfo.put("status", "ACTIVE");
+            debugInfo.put("recommendationService", "FLASK");
+            debugInfo.put("flaskServiceUrl", FLASK_SERVICE_URL);
 
             // 系统状态信息
             Map<String, Object> systemStatus = new HashMap<>();
@@ -483,6 +612,7 @@ public class RecommendationController {
             endpointsStatus.put("cacheRecommendations", "AVAILABLE");
             endpointsStatus.put("userProfile", "AVAILABLE");
             endpointsStatus.put("activityData", "AVAILABLE");
+            endpointsStatus.put("flaskService", "CONFIGURED");
             debugInfo.put("endpointsStatus", endpointsStatus);
 
             return ResponseEntity.ok(debugInfo);
@@ -671,6 +801,8 @@ public class RecommendationController {
         response.put("success", true);
         response.put("message", "推荐系统公开接口测试成功");
         response.put("timestamp", System.currentTimeMillis());
+        response.put("recommendationService", "FLASK");
+        response.put("flaskServiceUrl", FLASK_SERVICE_URL);
 
         Map<String, String> endpoints = new HashMap<>();
         endpoints.put("personalized", "/recommendations/for-current-user (需要认证)");

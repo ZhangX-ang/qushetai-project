@@ -55,6 +55,7 @@ public class SecurityConfig {
                                 "/api/users/register",
                                 "/api/users/login",
                                 "/api/users/login-pwd",
+                                "/api/users/send-code",
 
                                 // 行为数据采集
                                 "/api/behavior/**",
@@ -78,6 +79,7 @@ public class SecurityConfig {
                                 "/debug/**",
                                 "/health",
                                 "/status",
+                                "/api/health",
 
                                 // 消息系统测试
                                 "/messages/test",
@@ -86,15 +88,40 @@ public class SecurityConfig {
                                 "/admin/public-test",
 
                                 // 活动相关测试
+                                "/api/activities",
+                                "/api/activities/**",
+                                "/api/activities/hello",
+                                "/api/activities/test",
+                                "/api/activities/health",
+                                "/api/activities/public/**",
+                                "/api/activities/status",
                                 "/activities",
                                 "/activities/**",
                                 "/activities/hello",
                                 "/activities/test",
                                 "/activities/health",
                                 "/activities/public/**",
+                                "/activities/status",
+
+                                // 兴趣标签相关（新增）
+                                "/api/interests/**",
+                                "/api/user/interests",
+                                "/api/tags/available",
+                                "/api/tags/available-from-db",
+                                "/api/tags/categories",
+                                "/api/tags/popular",
+                                "/api/tags/{tagName}/activities",
+
+                                // 标签相关接口（新增）
+                                "/api/user/tags/available",           // 获取可用标签（公开）
+                                "/api/user/tags/available-from-db",   // 从数据库获取可用标签（公开）
+                                "/api/user/tags",                     // GET 获取用户标签（为调试暂时公开，生产环境应该需要认证）
+                                "/api/tags/**",                       // 标签服务接口
 
                                 // 用户相关（给C同学测试数据库用）
                                 "/api/users/**",
+                                "/api/users/*/recommendations/by-tags",
+                                "/api/users/*/tags/batch",
 
                                 // 推荐系统完整接口（给D同学）
                                 "/recommendations/**",
@@ -120,7 +147,7 @@ public class SecurityConfig {
                                 "/actuator/**",
                                 "/h2-console/**",
 
-                                // 标签服务接口（新增，不影响其他测试）
+                                // 标签服务接口（全部放开，确保C同学可以测试）
                                 "/api/tags/health",
                                 "/api/tags/test",
                                 "/api/tags",
@@ -133,6 +160,17 @@ public class SecurityConfig {
                 .formLogin(form -> form.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .logout(logout -> logout.disable())
+                // ↓ 关键修复：自定义认证失败处理（返回 JSON 而非重定向）
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write(
+                                    "{\"success\": false, \"message\": \"请先登录\", \"code\": 401}"
+                            );
+                        })
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
